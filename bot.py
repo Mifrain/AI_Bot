@@ -1,14 +1,18 @@
 import asyncio
-from aiogram import Bot, Dispatcher
-from aiogram.fsm.storage.memory import MemoryStorage
 import logging
 
+from aiogram import Bot, Dispatcher
+from aiogram.fsm.storage.memory import MemoryStorage
+
 from config import settings
-from handlers import start, send_notification, menu, tasks
 from database import db
+from handlers import menu, send_notification, start, tasks
 from middleware import RegistrationMiddleware
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
 logger = logging.getLogger(__name__)
 
 bot = Bot(token=settings.BOT_TOKEN)
@@ -26,6 +30,7 @@ dp.include_router(tasks.router)
 
 dp.include_router(send_notification.router)
 
+
 async def on_startup():
     from scheduler import start_scheduler
 
@@ -33,8 +38,11 @@ async def on_startup():
     logger.info("Уведомления подгружены")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     dp.startup.register(on_startup)
 
     logger.info("Бот Запущен")
-    dp.run_polling(bot)
+    try:
+        dp.run_polling(bot)
+    except Exception as e:
+        logger.error(f"Ошибка при запуске бота: {e}")

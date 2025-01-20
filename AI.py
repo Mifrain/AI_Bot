@@ -1,33 +1,67 @@
 import asyncio
-from langchain_gigachat.chat_models import GigaChat
-from langchain_core.messages import SystemMessage, HumanMessage
+import logging
 import re
 
-from config import settings
-# from bot import logger
+from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_gigachat.chat_models import GigaChat
 
+from config import settings
+
+logger = logging.getLogger(__name__)
 
 if not settings.GIGACHAT_API_KEY:
     raise EnvironmentError("API ключ GigaChat не найден. Проверьте файл .env.")
 
 # Инициализация клиента GigaChat
-giga = GigaChat(credentials=settings.GIGACHAT_API_KEY, model="GigaChat-Pro", verify_ssl_certs=False)
+giga = GigaChat(
+    credentials=settings.GIGACHAT_API_KEY, model="GigaChat-Max", verify_ssl_certs=False
+)
+
 
 async def invoke_gigachat_async(messages):
     return await asyncio.to_thread(giga.invoke, messages)
 
 
-#можно не передавать тогда будет случайная категория.
-async def generate_task_with_gigachat(level: int, category: str = None):
+async def generate_task_with_gigachat(
+    level: int, category: str = None, max_attempts: int = 3
+):
+    """Генерация задания с помощью GigaChat."""
     attempts = 0
-    max_attempts = 3
 
     while attempts < max_attempts:
         try:
-            category_filter = f"Категория задания: {category}" if category else "Случайная категория."
+            category_filter = (
+                f"Категория задания: {category}" if category else "Случайная категория."
+            )
             messages = [
-                SystemMessage(content="Вы создаёте задания для бота, который помогает развивать внимание пользователей."),
-                HumanMessage(content=f"""
+                SystemMessage(
+                    content="""
+                    Вы создаёте задания для бота, который помогает пользователям развивать внимание. 
+                    Каждое задание должно быть уникальным для данного пользователя в рамках одной сессии. 
+                    Уровень сложности задания зависит от текущего уровня пользователя. Чем выше уровень, тем сложнее задание.
+                    Для каждого задания определите сложность и укажите, сколько баллов рейтинга должен получить пользователь за его выполнение.
+                    Пожалуйста, избегайте повторения ранее сгенерированных заданий для этого пользователя.
+
+                    **Строго ожидаемый формат ответа для всех категорий:**
+                    Категория: Название категории  
+                    Текст задания: Ваш текст задания (одно или несколько предложений)  
+                    Правильный ответ: Краткое и точное решение (одно или несколько предложений)  
+                    Баллы за выполнение: Число (количество баллов, которое получает пользователь за успешное выполнение задания)
+                    
+                    Формат должен подходит под такую обработку:
+                    match = re.search(
+                        r"Категория:\s*(.*?)\s+"
+                        r"Текст задания:\s*(.*?)\s+"
+                        r"Правильный ответ:\s*(.*?)\s+"
+                        r"Баллы за выполнение:\s*(\d+)",
+                        result,
+                        re.DOTALL,
+                    )
+
+                    """
+                ),
+                HumanMessage(
+                    content=f"""
 Вы создаёте задание для тренировки внимания.
 
 **Уровень сложности:** {level}.
@@ -39,53 +73,49 @@ async def generate_task_with_gigachat(level: int, category: str = None):
 3. Найти лишний элемент: список слов, чисел или символов, где одно из них выбивается из общего ряда.
 4. Распознавание последовательностей: числовая или логическая последовательность, где пользователь должен определить следующий элемент.
 5. Тест на память: текст или таблица символов, которые пользователь должен запомнить. После этого задайте вопрос по содержимому.
-
-**ВНИМАНИЕ! Ожидаемый формат ответа:**  
-Ответ должен быть структурирован без использования Markdown, HTML или других разметок. Ответ должен быть представлен в следующем формате:
-
-Категория: Название категории  
-Текст задания: Ваш текст задания (одно или несколько предложений)  
-Правильный ответ: Краткое и точное решение (одно или несколько предложений)
-
-Пример:  
-Категория: Исправление ошибок  
-Текст задания: Найдите ошибки в этом тексте: \"Они шёл в парке, но не взяла зонтик.\"  
-Правильный ответ: \"Он шёл в парке, но не взял зонтик.\"
-
-Убедитесь, что ответ полностью соответствует указанному формату.
-""")
+"""
+                ),
             ]
             response = await invoke_gigachat_async(messages)
             result = response.content.strip()
-            # logger.info(f"Полученный ответ: {result}")
 
-            # Обновлённое регулярное выражение для разбора ответа
+            if not result:
+                logger.error("GigaChat вернул пустой результат.")
+                raise ValueError("GigaChat вернул пустой результат.")
+
             match = re.search(
-                r"Категория:\s*(.*?)\s+Текст задания:\s*(.*?)\s+Правильный ответ:\s*(.*)",
+                r"Категория:\s*(.*?)\s+"
+                r"Текст задания:\s*(.*?)\s+"
+                r"Правильный ответ:\s*(.*?)\s+"
+                r"Баллы за выполнение:\s*(\d+)",
                 result,
                 re.DOTALL,
             )
+
             if not match:
-                # logger.error(f"Неверный формат ответа: {result}")
+                logger.error(f"Неверный формат ответа от GigaChat: {result}")
                 raise ValueError("Некорректный формат задания от GigaChat.")
 
             category = match.group(1).strip()
             task = match.group(2).strip()
             correct_answer = match.group(3).strip()
-            return category, task, correct_answer
+            points = int(match.group(4).strip())
+            return category, task, correct_answer, points
+
         except Exception as e:
             attempts += 1
-            # logger.error(f"Попытка {attempts} из {max_attempts} не удалась. Ошибка: {e}")
+            logger.error(f"Попытка {attempts} не удалась: {e}")
             await asyncio.sleep(1)
 
     raise RuntimeError("Не удалось создать задание после 3 попыток.")
 
 
-# Асинхронная функция проверки ответа
 async def check_answer_with_gigachat(task, correct_answer, user_answer):
+    """Проверка ответа пользователя с помощью GigaChat."""
     messages = [
         SystemMessage(content="Вы бот для проверки заданий."),
-        HumanMessage(content=f"""
+        HumanMessage(
+            content=f"""
             Вы являетесь ботом, который проверяет ответы пользователей. Ответ должен быть структурирован следующим образом:
             1. Первая строка — это флаг правильности:
             - "верно" — если пользователь ответил правильно.
@@ -107,7 +137,8 @@ async def check_answer_with_gigachat(task, correct_answer, user_answer):
             Правильный ответ: {correct_answer}
 
             Пожалуйста, сформируйте ответ в указанном формате.
-    """)
+            """
+        ),
     ]
     response = await invoke_gigachat_async(messages)
     feedback = response.content.strip()

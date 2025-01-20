@@ -1,12 +1,20 @@
 from aiogram.filters import callback_data
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
 
 def get_inline_keyboard(buttons: list[dict]) -> InlineKeyboardMarkup:
     inline_keyboard = [
-        [InlineKeyboardButton(text=btn['text'], callback_data=btn.get('callback_data'), url=btn.get('url'))]
+        [
+            InlineKeyboardButton(
+                text=btn["text"],
+                callback_data=btn.get("callback_data"),
+                url=btn.get("url"),
+            )
+        ]
         for btn in buttons
     ]
     return InlineKeyboardMarkup(inline_keyboard=inline_keyboard)
+
 
 tasks_buttons = [
     {"text": "✍️ Исправление ошибок", "callback_data": "task_find_errors"},
@@ -17,9 +25,9 @@ tasks_buttons = [
 ]
 
 reminder_buttons = [
-    {'text': 'Включить напоминания', 'callback_data': "reminder_on"},
-    {'text': 'Выключить напоминания', 'callback_data': 'reminder_off'},
-    {'text': 'Установить время напоминаний', 'callback_data': 'change_reminder_time'}
+    {"text": "Включить напоминания", "callback_data": "reminder_on"},
+    {"text": "Выключить напоминания", "callback_data": "reminder_off"},
+    {"text": "Установить время напоминаний", "callback_data": "change_reminder_time"},
 ]
 
 test_buttons = [
@@ -31,6 +39,7 @@ tasks_inline_kb = get_inline_keyboard(tasks_buttons)
 reminder_inline_kb = get_inline_keyboard(reminder_buttons)
 
 # Questions
-back_inline_kb = get_inline_keyboard([{"text": "📊 Меню задач 📊", "callback_data": "task_menu"}])
+back_inline_kb = get_inline_keyboard(
+    [{"text": "📊 Меню задач 📊", "callback_data": "task_menu"}]
+)
 break_inline_kb = get_inline_keyboard(test_buttons)
-
