@@ -23,6 +23,7 @@ async def admin_command(message: Message):
     is_admin = db.is_user_admin(message.from_user.id)
     if not is_admin:
         await message.answer("Вы не являетесь админом!", reply_markup=main_menu_kb)
+        return
     await message.answer("Админ панель\nВыберите действие:", reply_markup=admin_menu_kb)
 
 
