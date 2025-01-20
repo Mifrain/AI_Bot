@@ -80,7 +80,7 @@ async def rating(message: Message):
             rating_message += f"{i}. {user['display_name']}: {user['rating']} очков\n"
 
         if user_data["user_position"] > 0:
-            rating_message += "Ваши результаты:\n\n"
+            rating_message += "\nВаши результаты:\n"
             rating_message += f"Позиция: {user_data['user_position']}\n"
             rating_message += f"Очки: {user_data['user_rating']}"
         else:

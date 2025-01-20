@@ -171,3 +171,14 @@ async def save_changed_reminder_time(message: Message, state: FSMContext):
 @router.message(Command("check"))
 async def check(message: Message):
     await message.answer(str(scheduler.running))
+
+
+@router.message()
+async def unknown_command(message: Message, state: FSMContext):
+    # Проверяем, есть ли активное состояние
+    current_state = await state.get_state()
+    if current_state is None:  # Если пользователь не находится в состоянии
+        await message.answer(
+            "Извините, я не понимаю эту команду. Попробуйте использовать /menu для навигации."
+        )
+        return
